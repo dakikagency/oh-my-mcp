@@ -1,0 +1,33 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# next.js
+.next/
+out/
+next-env.d.ts
+
+# opennext + cloudflare
+.open-next/
+.wrangler/
+.dev.vars
+.dev.vars.*
+cloudflare-env.d.ts
+
+# env
+.env
+.env.local
+.env.*.local
+
+# prisma
+prisma/generated/
+
+# misc
+*.log
+.DS_Store
+.turbo/
+.vercel/
+tsconfig.tsbuildinfo
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
