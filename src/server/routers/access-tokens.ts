@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
 import { zValidator } from "@hono/zod-validator";
 
 import type { Env } from "../context";
@@ -64,10 +65,13 @@ export const accessTokensRouter = new Hono<Env>()
     const serverId = c.req.param("serverId")!;
     const tokenId = c.req.param("tokenId");
     await loadServer(c, serverId);
-    await c.var.db.mcpAccessToken.update({
-      where: { id: tokenId },
+    // Tie the revocation predicate to the verified server so a known
+    // token ID from another server/org cannot be revoked here.
+    const { count } = await c.var.db.mcpAccessToken.updateMany({
+      where: { id: tokenId, serverId },
       data: { revokedAt: new Date() },
     });
+    if (count === 0) throw new HTTPException(404, { message: "Token not found." });
     return c.json({ ok: true });
   });
 
