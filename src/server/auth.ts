@@ -49,26 +49,27 @@ export function createAuth(connectionString?: string) {
 export type Auth = ReturnType<typeof createAuth>;
 export type AuthSession = Awaited<ReturnType<Auth["api"]["getSession"]>>;
 
-let _auth: Auth | null = null;
-
-function resolveAuth(): Auth {
-  if (!_auth) _auth = createAuth();
-  return _auth;
-}
-
 /**
- * Lazy-initialised singleton for Node.js (`next dev` and better-auth CLI).
- * Workers should prefer `createAuth(env.DATABASE_URL)` so that each
- * invocation uses its own DB connection.
+ * Default proxy for RSC helpers and the better-auth CLI.
  *
- * Access is proxied so the module can be imported at build time without
- * DATABASE_URL being set.
+ * Each property access constructs a fresh better-auth instance so that
+ * each Cloudflare Worker invocation gets its own Prisma/Neon client.
+ * `betterAuth()` itself is cheap — it just wires handlers — and the Neon
+ * HTTP driver holds no persistent connection, so this is safe and
+ * honours the per-request contract in `src/lib/db.ts`.
+ *
+ * Hono middleware should still call `createAuth(env.DATABASE_URL)`
+ * explicitly to bind to the per-request URL.
+ *
+ * The Proxy wrapper also means the module can be imported at build time
+ * without DATABASE_URL being set — `createAuth` is only called once
+ * something is actually read off the object.
  */
 export const auth = new Proxy({} as Auth, {
   get(_t, prop) {
-    return Reflect.get(resolveAuth() as object, prop);
+    return Reflect.get(createAuth() as object, prop);
   },
   has(_t, prop) {
-    return Reflect.has(resolveAuth() as object, prop);
+    return Reflect.has(createAuth() as object, prop);
   },
 });
