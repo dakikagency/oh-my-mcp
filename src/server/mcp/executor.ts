@@ -124,10 +124,14 @@ export async function executeTool(opts: ExecuteOptions): Promise<ExecuteResult> 
     });
     const contentType = res.headers.get("content-type");
     const max = opts.maxResponseBytes ?? 1_000_000;
-    const raw = await res.text();
-    const clipped = raw.length > max ? raw.slice(0, max) + "…[truncated]" : raw;
+    // Bound memory while streaming: stop reading as soon as `max` bytes
+    // have been accumulated, then abort the connection. Reading the
+    // full body before truncation would defeat the cap and let large
+    // upstream responses exhaust the worker.
+    const { text: raw, truncated } = await readBoundedText(res, max, ac);
+    const clipped = truncated ? raw + "…[truncated]" : raw;
     let json: unknown = null;
-    if (contentType?.includes("application/json")) {
+    if (!truncated && contentType?.includes("application/json")) {
       try {
         json = JSON.parse(raw);
       } catch {
@@ -156,9 +160,17 @@ async function applyAuth(
 
   let currentUrl = url;
   for (const schemeKey of needed) {
-    const match =
-      opts.apiKeys.find((k) => k.schemeKey === schemeKey) ?? opts.apiKeys[0];
-    if (!match) continue;
+    // Require an exact scheme match. Falling back to opts.apiKeys[0]
+    // when the requested scheme is missing risks leaking the wrong
+    // credential (e.g. a Bearer being sent as a query param) to an
+    // upstream that never should have seen it. Fail closed instead.
+    const match = opts.apiKeys.find((k) => k.schemeKey === schemeKey);
+    if (!match) {
+      console.warn(
+        `[executor] skipping auth injection: no credential matches scheme "${schemeKey}"`
+      );
+      continue;
+    }
     const secret = await decryptSecret(match.secretCipher, opts.encryptionKey);
     switch (match.type) {
       case "BEARER":
@@ -197,4 +209,53 @@ function joinUrl(base: string, path: string): string {
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Read a Response body as UTF-8 text, stopping as soon as `maxBytes`
+ * bytes have been accumulated. When the limit is hit the underlying
+ * fetch is aborted so we don't keep pulling data from the upstream.
+ *
+ * This is the streamed counterpart of `res.text()` — the latter
+ * materialises the entire payload before we can enforce a cap,
+ * which defeats the purpose of a memory limit.
+ */
+async function readBoundedText(
+  res: Response,
+  maxBytes: number,
+  ac: AbortController
+): Promise<{ text: string; truncated: boolean }> {
+  if (!res.body) return { text: "", truncated: false };
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder("utf-8", { fatal: false });
+  const chunks: string[] = [];
+  let total = 0;
+  let truncated = false;
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      const remaining = maxBytes - total;
+      if (value.byteLength > remaining) {
+        chunks.push(decoder.decode(value.slice(0, remaining), { stream: true }));
+        total = maxBytes;
+        truncated = true;
+        break;
+      }
+      chunks.push(decoder.decode(value, { stream: true }));
+      total += value.byteLength;
+    }
+    chunks.push(decoder.decode());
+  } finally {
+    if (truncated) {
+      ac.abort();
+      try {
+        await reader.cancel();
+      } catch {
+        /* already aborted */
+      }
+    }
+  }
+  return { text: chunks.join(""), truncated };
 }
