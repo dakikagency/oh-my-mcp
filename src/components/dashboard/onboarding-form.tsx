@@ -14,8 +14,17 @@ import { slugify } from "@/lib/utils";
 export function OnboardingForm() {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
+  // Tracks whether the user has manually edited the slug. Until they
+  // do, we keep the slug in sync with the workspace name so a partial
+  // slug doesn't get submitted.
+  const [slugTouched, setSlugTouched] = useState(false);
   const [pending, start] = useTransition();
   const router = useRouter();
+
+  const onNameChange = (next: string) => {
+    setName(next);
+    if (!slugTouched) setSlug(slugify(next));
+  };
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,10 +50,7 @@ export function OnboardingForm() {
           id="on-name"
           required
           value={name}
-          onChange={(e) => {
-            setName(e.target.value);
-            if (!slug) setSlug(slugify(e.target.value));
-          }}
+          onChange={(e) => onNameChange(e.target.value)}
           placeholder="Acme Labs"
         />
       </div>
@@ -53,7 +59,10 @@ export function OnboardingForm() {
         <Input
           id="on-slug"
           value={slug}
-          onChange={(e) => setSlug(e.target.value)}
+          onChange={(e) => {
+            setSlug(e.target.value);
+            setSlugTouched(true);
+          }}
           placeholder="acme-labs"
         />
       </div>

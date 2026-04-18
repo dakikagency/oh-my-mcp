@@ -179,13 +179,26 @@ export function ApiKeysPanel({
             </div>
             {(form.type === "HEADER" || form.type === "QUERY") && (
               <div className="space-y-2">
-                <Label htmlFor="k-param">Parameter name</Label>
+                <Label htmlFor="k-param">
+                  Parameter name <span className="text-destructive">*</span>
+                </Label>
                 <Input
                   id="k-param"
                   value={form.paramName}
                   onChange={(e) => setForm({ ...form, paramName: e.target.value })}
                   placeholder="X-API-Key"
+                  required
+                  aria-invalid={
+                    (form.type === "HEADER" || form.type === "QUERY") &&
+                    !form.paramName
+                      ? true
+                      : undefined
+                  }
                 />
+                <p className="text-xs text-muted-foreground">
+                  Required for {form.type.toLowerCase()} credentials —
+                  without it the secret will never be injected.
+                </p>
               </div>
             )}
             <div className="space-y-2">
@@ -217,7 +230,15 @@ export function ApiKeysPanel({
             </Button>
             <Button
               onClick={create}
-              disabled={pending || !form.name || !form.secret}
+              disabled={
+                pending ||
+                !form.name ||
+                !form.secret ||
+                // HEADER/QUERY secrets without a paramName can never be
+                // injected — block the save instead of storing dead data.
+                ((form.type === "HEADER" || form.type === "QUERY") &&
+                  !form.paramName)
+              }
             >
               Save (encrypted)
             </Button>
