@@ -28,19 +28,44 @@ export function SignUpForm() {
         return;
       }
       // Auto-create the first organization from the workspace name.
+      // Common names (e.g. "Acme") collide on the unique slug constraint,
+      // so we retry with a short random suffix before giving up.
       const orgName = workspace.trim() || `${name.split(" ")[0]}'s Workspace`;
-      const orgSlug = slugify(orgName) || `ws-${Math.random().toString(36).slice(2, 8)}`;
-      const { data: org, error: orgErr } = await organization.create({
-        name: orgName,
-        slug: orgSlug,
-      });
-      if (orgErr) {
-        toast.error(orgErr.message ?? "Could not create workspace.");
+      const baseSlug = slugify(orgName) || `ws-${Math.random().toString(36).slice(2, 8)}`;
+      const slugCandidates = [
+        baseSlug,
+        `${baseSlug}-${Math.random().toString(36).slice(2, 6)}`,
+        `${baseSlug}-${Math.random().toString(36).slice(2, 10)}`,
+      ];
+
+      let createdOrgId: string | null = null;
+      let lastError: { message?: string } | null = null;
+      for (const slug of slugCandidates) {
+        const { data: org, error: orgErr } = await organization.create({
+          name: orgName,
+          slug,
+        });
+        if (!orgErr && org?.id) {
+          createdOrgId = org.id;
+          break;
+        }
+        lastError = orgErr ?? null;
+      }
+
+      if (!createdOrgId) {
+        // Account exists; user can pick a slug manually on the
+        // onboarding page instead of being stranded here.
+        toast.error(
+          lastError?.message
+            ? `Workspace name taken — pick another on the next screen.`
+            : "Could not create workspace automatically."
+        );
+        router.push("/dashboard/onboarding");
+        router.refresh();
         return;
       }
-      if (org?.id) {
-        await organization.setActive({ organizationId: org.id });
-      }
+
+      await organization.setActive({ organizationId: createdOrgId });
       toast.success("Welcome aboard!");
       router.push("/dashboard");
       router.refresh();
