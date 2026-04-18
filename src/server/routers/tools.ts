@@ -38,12 +38,18 @@ export const toolsRouter = new Hono<Env>()
       const toolId = c.req.param("toolId");
       await loadServer(c, serverId);
       const body = c.req.valid("json");
-      const tool = await c.var.db.mcpTool.update({
-        where: { id: toolId },
+      // Scope the write to the verified server to prevent cross-tenant
+      // modification when a tool ID from another server/org is known.
+      const { count } = await c.var.db.mcpTool.updateMany({
+        where: { id: toolId, serverId },
         data: {
           ...(body.enabled !== undefined ? { enabled: body.enabled } : {}),
           ...(body.description !== undefined ? { description: body.description } : {}),
         },
+      });
+      if (count === 0) throw new HTTPException(404, { message: "Tool not found." });
+      const tool = await c.var.db.mcpTool.findUniqueOrThrow({
+        where: { id: toolId },
       });
       return c.json({ tool });
     }

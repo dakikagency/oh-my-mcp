@@ -48,6 +48,15 @@ export const orgsRouter = new Hono<Env>()
 
   .get("/:orgId/members", async (c) => {
     const orgId = c.req.param("orgId");
+    const userId = c.var.session!.user.id;
+    // Anyone signed in can hit this route; only return data if the caller
+    // is a member of the target org. Without this guard, any user who
+    // learns an org ID could enumerate member identities and emails.
+    const membership = await c.var.db.member.findFirst({
+      where: { organizationId: orgId, userId },
+      select: { id: true },
+    });
+    if (!membership) throw new HTTPException(403, { message: "Forbidden." });
     const members = await c.var.db.member.findMany({
       where: { organizationId: orgId },
       include: { user: { select: { id: true, name: true, email: true, image: true } } },

@@ -69,7 +69,12 @@ export const apiKeysRouter = new Hono<Env>()
     const serverId = c.req.param("serverId")!;
     const keyId = c.req.param("keyId");
     await loadServer(c, serverId);
-    await c.var.db.mcpApiKey.delete({ where: { id: keyId } });
+    // Compound predicate prevents cross-tenant deletion when a key ID
+    // from another server/org is known.
+    const { count } = await c.var.db.mcpApiKey.deleteMany({
+      where: { id: keyId, serverId },
+    });
+    if (count === 0) throw new HTTPException(404, { message: "Key not found." });
     return c.json({ ok: true });
   });
 
