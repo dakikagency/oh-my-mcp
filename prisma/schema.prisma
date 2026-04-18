@@ -127,6 +127,7 @@ model Invitation {
   role           String?
   status         String       @default("pending")
   expiresAt      DateTime
+  createdAt      DateTime     @default(now())
   inviterId      String
   inviter        User         @relation(fields: [inviterId], references: [id], onDelete: Cascade)
 
