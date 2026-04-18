@@ -1,0 +1,297 @@
+// Prisma schema for oh-my-mcp
+// Run: pnpm db:generate
+// Migrate: pnpm db:migrate -- --name <label>
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================================
+// better-auth core (generated-compatible fields)
+// ============================================================
+
+model User {
+  id            String    @id
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  sessions    Session[]
+  accounts    Account[]
+  members     Member[]
+  invitations Invitation[]
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // organization plugin
+  activeOrganizationId String?
+
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+// ============================================================
+// better-auth / organization plugin
+// ============================================================
+
+model Organization {
+  id        String   @id
+  name      String
+  slug      String   @unique
+  logo      String?
+  metadata  String?
+  createdAt DateTime @default(now())
+
+  members     Member[]
+  invitations Invitation[]
+  mcpServers  McpServer[]
+  openApiDocs OpenApiDoc[]
+  auditLogs   AuditLog[]
+
+  @@map("organization")
+}
+
+model Member {
+  id             String       @id
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           String       @default("member")
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@map("member")
+}
+
+model Invitation {
+  id             String       @id
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String
+  role           String?
+  status         String       @default("pending")
+  expiresAt      DateTime
+  inviterId      String
+  inviter        User         @relation(fields: [inviterId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([email])
+  @@map("invitation")
+}
+
+// ============================================================
+// oh-my-mcp domain
+// ============================================================
+
+enum McpVisibility {
+  PRIVATE
+  UNLISTED
+  PUBLIC
+}
+
+enum McpAuthType {
+  NONE
+  BEARER
+  HEADER
+  QUERY
+  BASIC
+}
+
+enum OpenApiSource {
+  UPLOAD
+  URL
+  PASTE
+}
+
+model OpenApiDoc {
+  id             String        @id @default(cuid())
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  title          String
+  version        String
+  source         OpenApiSource
+  sourceUrl      String?
+  hash           String        @db.VarChar(64)
+  rawJson        Json
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  mcpServers McpServer[]
+
+  @@unique([organizationId, hash])
+  @@index([organizationId])
+  @@map("openapi_doc")
+}
+
+model McpServer {
+  id             String        @id @default(cuid())
+  slug           String        @unique
+  organizationId String
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  openApiDocId   String
+  openApiDoc    OpenApiDoc    @relation(fields: [openApiDocId], references: [id], onDelete: Restrict)
+  name           String
+  description    String?
+  baseUrl        String
+  visibility     McpVisibility @default(PRIVATE)
+  // Arbitrary runtime config (headers, rate limits, etc.)
+  config         Json          @default("{}")
+  createdById    String
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  tools       McpTool[]
+  apiKeys     McpApiKey[]
+  accessTokens McpAccessToken[]
+  logs        McpCallLog[]
+
+  @@index([organizationId])
+  @@map("mcp_server")
+}
+
+model McpTool {
+  id           String  @id @default(cuid())
+  serverId     String
+  server       McpServer @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  name         String
+  operationId  String?
+  method       String
+  path         String
+  summary      String?
+  description  String?
+  inputSchema  Json
+  outputSchema Json?
+  // Instructions for mapping tool args to HTTP request (path/query/header/body).
+  wire         Json
+  securityKeys String[] @default([])
+  enabled      Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([serverId, name])
+  @@index([serverId])
+  @@map("mcp_tool")
+}
+
+// Outbound credentials used to call the upstream API.
+// `secretCipher` is AES-GCM(iv || ciphertext || authTag), base64url.
+model McpApiKey {
+  id           String     @id @default(cuid())
+  serverId     String
+  server       McpServer  @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  name         String
+  type         McpAuthType
+  // For HEADER/QUERY: the param name. Null for BEARER/BASIC.
+  paramName    String?
+  // Marks which OpenAPI security scheme name this fulfils.
+  schemeKey    String?
+  secretCipher String
+  createdAt    DateTime   @default(now())
+
+  @@index([serverId])
+  @@map("mcp_api_key")
+}
+
+// Inbound tokens clients use to reach a private MCP server.
+model McpAccessToken {
+  id        String    @id @default(cuid())
+  serverId  String
+  server    McpServer @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  name      String
+  // SHA-256 hex of the raw token. Raw token is shown once on creation.
+  tokenHash String    @unique
+  // Short prefix to display ("omm_abc…").
+  prefix    String
+  lastUsedAt DateTime?
+  expiresAt DateTime?
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([serverId])
+  @@map("mcp_access_token")
+}
+
+model McpCallLog {
+  id        String   @id @default(cuid())
+  serverId  String
+  server    McpServer @relation(fields: [serverId], references: [id], onDelete: Cascade)
+  toolName  String
+  status    Int
+  latencyMs Int
+  errorCode String?
+  createdAt DateTime @default(now())
+
+  @@index([serverId, createdAt])
+  @@map("mcp_call_log")
+}
+
+model AuditLog {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actorUserId    String?
+  action         String
+  targetType     String?
+  targetId       String?
+  metadata       Json?
+  createdAt      DateTime     @default(now())
+
+  @@index([organizationId, createdAt])
+  @@map("audit_log")
+}
