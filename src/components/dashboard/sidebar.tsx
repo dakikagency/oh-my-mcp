@@ -3,22 +3,22 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  House,
-  Stack,
-  Users,
-  GearSix,
-  Plug,
-  Plus,
+  HouseIcon,
+  StackIcon,
+  UsersIcon,
+  GearSixIcon,
+  PlugIcon,
+  PlusIcon,
 } from "@phosphor-icons/react/dist/ssr";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
 const nav = [
-  { href: "/dashboard", label: "Overview", icon: House },
-  { href: "/servers", label: "Servers", icon: Stack },
-  { href: "/org", label: "Organization", icon: Users },
-  { href: "/account", label: "Account", icon: GearSix },
+  { href: "/dashboard", label: "Overview", icon: HouseIcon },
+  { href: "/servers", label: "Servers", icon: StackIcon },
+  { href: "/org", label: "Organization", icon: UsersIcon },
+  { href: "/account", label: "Account", icon: GearSixIcon },
 ];
 
 export function Sidebar() {
@@ -26,13 +26,13 @@ export function Sidebar() {
   return (
     <aside className="hidden w-60 shrink-0 border-r bg-card/30 md:flex md:flex-col">
       <div className="flex h-14 items-center gap-2 border-b px-4 font-semibold">
-        <Plug weight="duotone" className="h-5 w-5 text-primary" />
+        <PlugIcon weight="duotone" className="h-5 w-5 text-primary" />
         oh-my-mcp
       </div>
       <div className="flex-1 space-y-1 p-3">
         <Button asChild size="sm" className="mb-3 w-full justify-start gap-2">
           <Link href="/servers/new">
-            <Plus className="h-4 w-4" /> New server
+            <PlusIcon className="h-4 w-4" /> New server
           </Link>
         </Button>
         {nav.map((item) => {

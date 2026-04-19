@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { GithubLogo, GoogleLogo, ArrowRight } from "@phosphor-icons/react/dist/ssr";
+import { GithubLogoIcon, GoogleLogoIcon, ArrowRightIcon } from "@phosphor-icons/react/dist/ssr";
 
 export function SignInForm() {
   const [email, setEmail] = useState("");
@@ -71,7 +71,7 @@ export function SignInForm() {
         </div>
         <Button type="submit" className="w-full" disabled={pending}>
           {pending ? "Signing in…" : "Sign in"}
-          <ArrowRight className="ml-1 h-4 w-4" />
+          <ArrowRightIcon className="ml-1 h-4 w-4" />
         </Button>
       </form>
 
@@ -89,7 +89,7 @@ export function SignInForm() {
           onClick={() => onSocial("github")}
           disabled={pending}
         >
-          <GithubLogo weight="fill" /> GitHub
+          <GithubLogoIcon weight="fill" /> GitHub
         </Button>
         <Button
           type="button"
@@ -97,7 +97,7 @@ export function SignInForm() {
           onClick={() => onSocial("google")}
           disabled={pending}
         >
-          <GoogleLogo weight="fill" /> Google
+          <GoogleLogoIcon weight="fill" /> Google
         </Button>
       </div>
     </div>
