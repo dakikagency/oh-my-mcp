@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plug } from "@phosphor-icons/react/dist/ssr";
+import { PlugIcon } from "@phosphor-icons/react/dist/ssr";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -7,7 +7,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,theme(colors.primary/10),transparent_60%)]" />
       <header className="container mx-auto flex h-14 items-center px-4">
         <Link href="/" className="flex items-center gap-2 font-semibold">
-          <Plug weight="duotone" className="h-5 w-5 text-primary" />
+          <PlugIcon weight="duotone" className="h-5 w-5 text-primary" />
           oh-my-mcp
         </Link>
       </header>
