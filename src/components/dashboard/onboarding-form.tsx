@@ -2,10 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
-import { ArrowRight } from "@phosphor-icons/react/dist/ssr";
+import { ArrowRightIcon } from "@phosphor-icons/react/dist/ssr";
 
-import { organization } from "@/lib/auth-client";
+import { api, apiAction, apiMutate } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +17,7 @@ export function OnboardingForm() {
   // do, we keep the slug in sync with the workspace name so a partial
   // slug doesn't get submitted.
   const [slugTouched, setSlugTouched] = useState(false);
-  const [pending, start] = useTransition();
+  const [pending, startTransition] = useTransition();
   const router = useRouter();
 
   const onNameChange = (next: string) => {
@@ -28,15 +27,18 @@ export function OnboardingForm() {
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    start(async () => {
+    startTransition(async () => {
       const finalSlug = slug.trim() || slugify(name);
-      const { data, error } = await organization.create({ name, slug: finalSlug });
-      if (error) {
-        toast.error(error.message ?? "Could not create organization.");
-        return;
-      }
-      if (data?.id) await organization.setActive({ organizationId: data.id });
-      toast.success("Workspace ready.");
+      const data = await apiMutate<{ organization: { id: string } }>(
+        () => api.orgs.$post({ json: { name, slug: finalSlug } }),
+        { error: "Could not create organization." }
+      );
+      if (!data) return;
+      const ok = await apiAction(
+        () => api.orgs.active.$post({ json: { orgId: data.organization.id } }),
+        { error: "Could not activate workspace.", success: "Workspace ready." }
+      );
+      if (!ok) return;
       router.push("/dashboard");
       router.refresh();
     });
@@ -68,7 +70,7 @@ export function OnboardingForm() {
       </div>
       <Button type="submit" className="w-full" disabled={pending || !name}>
         {pending ? "Creating…" : "Create workspace"}
-        <ArrowRight className="ml-1 h-4 w-4" />
+        <ArrowRightIcon className="ml-1 h-4 w-4" />
       </Button>
     </form>
   );

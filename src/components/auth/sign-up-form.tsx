@@ -4,18 +4,18 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-import { signUp, organization } from "@/lib/auth-client";
+import { signUp } from "@/lib/auth-client";
+import { api, apiAction, apiMutate } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowRight } from "@phosphor-icons/react/dist/ssr";
-import { slugify } from "@/lib/utils";
+import { ArrowRightIcon } from "@phosphor-icons/react/dist/ssr";
+import { randomSuffix, slugCandidates, slugify } from "@/lib/utils";
 
 export function SignUpForm() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [workspace, setWorkspace] = useState("");
   const [pending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -27,45 +27,40 @@ export function SignUpForm() {
         toast.error(error.message ?? "Sign up failed.");
         return;
       }
-      // Auto-create the first organization from the workspace name.
-      // Common names (e.g. "Acme") collide on the unique slug constraint,
-      // so we retry with a short random suffix before giving up.
-      const orgName = workspace.trim() || `${name.split(" ")[0]}'s Workspace`;
-      const baseSlug = slugify(orgName) || `ws-${Math.random().toString(36).slice(2, 8)}`;
-      const slugCandidates = [
-        baseSlug,
-        `${baseSlug}-${Math.random().toString(36).slice(2, 6)}`,
-        `${baseSlug}-${Math.random().toString(36).slice(2, 10)}`,
-      ];
+      // Auto-create a personal workspace from the user's name. Slug
+      // collisions across all orgs are disambiguated with short random
+      // suffixes before we give up.
+      const firstName = name.split(" ")[0] || "my";
+      const orgName = `${firstName}'s Workspace`;
+      const baseSlug = slugify(orgName) || `ws-${randomSuffix(6)}`;
 
       let createdOrgId: string | null = null;
-      let lastError: { message?: string } | null = null;
-      for (const slug of slugCandidates) {
-        const { data: org, error: orgErr } = await organization.create({
-          name: orgName,
-          slug,
-        });
-        if (!orgErr && org?.id) {
-          createdOrgId = org.id;
+      for (const slug of slugCandidates(baseSlug)) {
+        const data = await apiMutate<{ organization: { id: string } }>(
+          () => api.orgs.$post({ json: { name: orgName, slug } }),
+          { silent: true }
+        );
+        if (data?.organization?.id) {
+          createdOrgId = data.organization.id;
           break;
         }
-        lastError = orgErr ?? null;
       }
 
       if (!createdOrgId) {
-        // Account exists; user can pick a slug manually on the
-        // onboarding page instead of being stranded here.
-        toast.error(
-          lastError?.message
-            ? `Workspace name taken — pick another on the next screen.`
-            : "Could not create workspace automatically."
-        );
-        router.push("/dashboard/onboarding");
+        // Extremely rare: three random slugs collided. The server-side
+        // `requireOrgSession` will create one for us on the next request,
+        // so just land the user on the dashboard instead of stranding
+        // them on an onboarding page they don't need.
+        toast.success("Welcome aboard!");
+        router.push("/dashboard");
         router.refresh();
         return;
       }
 
-      await organization.setActive({ organizationId: createdOrgId });
+      await apiAction(
+        () => api.orgs.active.$post({ json: { orgId: createdOrgId! } }),
+        { silent: true }
+      );
       toast.success("Welcome aboard!");
       router.push("/dashboard");
       router.refresh();
@@ -83,15 +78,6 @@ export function SignUpForm() {
           onChange={(e) => setName(e.target.value)}
           placeholder="Ada Lovelace"
           autoComplete="name"
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="workspace">Workspace name</Label>
-        <Input
-          id="workspace"
-          value={workspace}
-          onChange={(e) => setWorkspace(e.target.value)}
-          placeholder="Acme Labs"
         />
       </div>
       <div className="space-y-2">
@@ -119,8 +105,8 @@ export function SignUpForm() {
         />
       </div>
       <Button type="submit" className="w-full" disabled={pending}>
-        {pending ? "Creating workspace…" : "Create account"}
-        <ArrowRight className="ml-1 h-4 w-4" />
+        {pending ? "Creating account…" : "Create account"}
+        <ArrowRightIcon className="ml-1 h-4 w-4" />
       </Button>
     </form>
   );

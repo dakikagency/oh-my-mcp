@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Stack, Users, Key, Lightning } from "@phosphor-icons/react/dist/ssr";
+import { ArrowRightIcon, StackIcon, UsersIcon, KeyIcon, LightningIcon } from "@phosphor-icons/react/dist/ssr";
 
 import { getDashboardContext } from "@/server/session";
 import { Button } from "@/components/ui/button";
@@ -27,10 +27,10 @@ export default async function OverviewPage() {
   ]);
 
   const stats = [
-    { label: "Servers", value: serverCount, icon: Stack },
-    { label: "Tools", value: toolCount, icon: Lightning },
-    { label: "Upstream keys", value: keyCount, icon: Key },
-    { label: "Access tokens", value: tokenCount, icon: Users },
+    { label: "Servers", value: serverCount, icon: StackIcon },
+    { label: "Tools", value: toolCount, icon: LightningIcon },
+    { label: "Upstream keys", value: keyCount, icon: KeyIcon },
+    { label: "Access tokens", value: tokenCount, icon: UsersIcon },
   ];
 
   return (
@@ -44,7 +44,7 @@ export default async function OverviewPage() {
         </div>
         <Button asChild>
           <Link href="/servers/new">
-            New server <ArrowRight className="ml-1 h-4 w-4" />
+            New server <ArrowRightIcon className="ml-1 h-4 w-4" />
           </Link>
         </Button>
       </div>
@@ -102,13 +102,13 @@ export default async function OverviewPage() {
 function EmptyState() {
   return (
     <div className="flex flex-col items-center gap-4 py-10 text-center">
-      <Stack weight="duotone" className="h-10 w-10 text-muted-foreground" />
+      <StackIcon weight="duotone" className="h-10 w-10 text-muted-foreground" />
       <p className="text-sm text-muted-foreground">
-        No servers yet. Import an OpenAPI doc to get started.
+        Paste an OpenAPI URL to create your first MCP server.
       </p>
       <Button asChild>
         <Link href="/servers/new">
-          Create your first server <ArrowRight className="ml-1 h-4 w-4" />
+          Create your first server <ArrowRightIcon className="ml-1 h-4 w-4" />
         </Link>
       </Button>
     </div>
