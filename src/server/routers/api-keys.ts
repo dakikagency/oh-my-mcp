@@ -18,7 +18,7 @@ export const apiKeysRouter = new Hono<Env>()
   .get("/", async (c) => {
     const serverId = c.req.param("serverId")!;
     const server = await loadServer(c, serverId);
-    const keys = await c.var.db.mcpApiKey.findMany({
+    const apiKeys = await c.var.db.mcpApiKey.findMany({
       where: { serverId: server.id },
       select: {
         id: true,
@@ -30,7 +30,7 @@ export const apiKeysRouter = new Hono<Env>()
       },
       orderBy: { createdAt: "desc" },
     });
-    return c.json({ keys });
+    return c.json({ apiKeys });
   })
 
   .post("/", zValidator("json", createApiKeySchema), async (c) => {
@@ -62,7 +62,7 @@ export const apiKeysRouter = new Hono<Env>()
         createdAt: true,
       },
     });
-    return c.json({ key: created }, 201);
+    return c.json({ apiKey: created }, 201);
   })
 
   .delete("/:keyId", async (c) => {

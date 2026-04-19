@@ -4,7 +4,7 @@ import { zValidator } from "@hono/zod-validator";
 
 import type { Env } from "../context";
 import { requireAuth } from "../guards";
-import { createOrgSchema, inviteMemberSchema } from "@/lib/schemas";
+import { createOrgSchema, inviteMemberSchema, setActiveOrgSchema } from "@/lib/schemas";
 
 export const orgsRouter = new Hono<Env>()
   .use("*", requireAuth)
@@ -29,16 +29,25 @@ export const orgsRouter = new Hono<Env>()
 
   .post("/", zValidator("json", createOrgSchema), async (c) => {
     const body = c.req.valid("json");
-    const res = await c.var.auth.api.createOrganization({
-      body: { name: body.name, slug: body.slug },
-      headers: c.req.raw.headers,
-    });
-    if (!res) throw new HTTPException(400, { message: "Could not create organization." });
-    return c.json({ organization: res }, 201);
+    try {
+      const res = await c.var.auth.api.createOrganization({
+        body: { name: body.name, slug: body.slug },
+        headers: c.req.raw.headers,
+      });
+      if (!res) throw new HTTPException(400, { message: "Could not create organization." });
+      return c.json({ organization: res }, 201);
+    } catch (err) {
+      if (err instanceof HTTPException) throw err;
+      // better-auth throws on slug collisions and similar; surface the
+      // underlying message as a 409 so clients (sign-up retry loop, UI
+      // toasts) can distinguish it from a true server error.
+      const msg = err instanceof Error ? err.message : "Could not create organization.";
+      throw new HTTPException(409, { message: msg });
+    }
   })
 
-  .post("/:orgId/set-active", async (c) => {
-    const orgId = c.req.param("orgId");
+  .post("/active", zValidator("json", setActiveOrgSchema), async (c) => {
+    const { orgId } = c.req.valid("json");
     await c.var.auth.api.setActiveOrganization({
       body: { organizationId: orgId },
       headers: c.req.raw.headers,
@@ -66,7 +75,7 @@ export const orgsRouter = new Hono<Env>()
   })
 
   .post(
-    "/:orgId/invite",
+    "/:orgId/invitations",
     zValidator("json", inviteMemberSchema),
     async (c) => {
       const orgId = c.req.param("orgId");

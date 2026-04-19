@@ -20,7 +20,7 @@ export const openApiRouter = new Hono<Env>()
   .use("*", requireOrg)
 
   .get("/", async (c) => {
-    const docs = await c.var.db.openApiDoc.findMany({
+    const openApiDocs = await c.var.db.openApiDoc.findMany({
       where: { organizationId: c.var.orgId! },
       select: {
         id: true,
@@ -32,7 +32,7 @@ export const openApiRouter = new Hono<Env>()
       },
       orderBy: { createdAt: "desc" },
     });
-    return c.json({ docs });
+    return c.json({ openApiDocs });
   })
 
   .post("/from-url", zValidator("json", ingestFromUrlSchema), async (c) => {
@@ -65,21 +65,23 @@ export const openApiRouter = new Hono<Env>()
     return await persist(c, doc, { source: "UPLOAD", sourceUrl: null });
   })
 
-  .get("/:id", async (c) => {
-    const id = c.req.param("id");
+  .get("/:docId", async (c) => {
+    const docId = c.req.param("docId");
     const doc = await c.var.db.openApiDoc.findFirst({
-      where: { id, organizationId: c.var.orgId! },
+      where: { id: docId, organizationId: c.var.orgId! },
     });
     if (!doc) throw new HTTPException(404, { message: "Not found." });
     const preview = compileOpenApiToTools(doc.rawJson as unknown);
     return c.json({
-      id: doc.id,
-      title: doc.title,
-      version: doc.version,
-      source: doc.source,
-      sourceUrl: doc.sourceUrl,
-      toolCount: preview.tools.length,
-      baseUrl: preview.info.baseUrl,
+      openApiDoc: {
+        id: doc.id,
+        title: doc.title,
+        version: doc.version,
+        source: doc.source,
+        sourceUrl: doc.sourceUrl,
+        toolCount: preview.tools.length,
+        baseUrl: preview.info.baseUrl,
+      },
     });
   });
 
@@ -107,7 +109,7 @@ async function persist(
     });
     return c.json(
       {
-        doc: {
+        openApiDoc: {
           id: created.id,
           title: created.title,
           version: created.version,
@@ -124,7 +126,7 @@ async function persist(
       });
       if (existing) {
         return c.json({
-          doc: {
+          openApiDoc: {
             id: existing.id,
             title: existing.title,
             version: existing.version,

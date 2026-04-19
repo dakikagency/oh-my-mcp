@@ -23,7 +23,7 @@ const base = new Hono<Env>()
   .basePath("/api")
   .use("*", logger())
   .use("*", async (c, next) => {
-    const url = c.env.DATABASE_URL ?? process.env.DATABASE_URL;
+    const url = c.env?.DATABASE_URL ?? process.env.DATABASE_URL;
     const db = getDb(url);
     const auth = createAuth(url);
     c.set("db", db);
