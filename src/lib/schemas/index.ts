@@ -44,6 +44,13 @@ export const ingestFromTextSchema = z.object({
   source: openApiSourceEnum.default("PASTE"),
 });
 
+// ---- Quick create (one-shot: ingest + create server) ----
+
+export const quickCreateServerSchema = z.object({
+  // URL or raw OpenAPI document (JSON/YAML). We detect which at runtime.
+  input: z.string().min(1).max(5_000_000),
+});
+
 // ---- Tools ----
 
 export const updateToolSchema = z.object({
@@ -80,12 +87,22 @@ export const inviteMemberSchema = z.object({
   role: z.enum(["owner", "admin", "member"]).default("member"),
 });
 
+export const setActiveOrgSchema = z.object({
+  orgId: cuid,
+});
+
 export type CreateServerInput = z.infer<typeof createServerSchema>;
 export type UpdateServerInput = z.infer<typeof updateServerSchema>;
 export type IngestFromUrlInput = z.infer<typeof ingestFromUrlSchema>;
 export type IngestFromTextInput = z.infer<typeof ingestFromTextSchema>;
+export type QuickCreateServerInput = z.infer<typeof quickCreateServerSchema>;
 export type UpdateToolInput = z.infer<typeof updateToolSchema>;
 export type CreateApiKeyInput = z.infer<typeof createApiKeySchema>;
 export type CreateAccessTokenInput = z.infer<typeof createAccessTokenSchema>;
 export type CreateOrgInput = z.infer<typeof createOrgSchema>;
 export type InviteMemberInput = z.infer<typeof inviteMemberSchema>;
+export type SetActiveOrgInput = z.infer<typeof setActiveOrgSchema>;
+
+export type Visibility = z.infer<typeof visibilityEnum>;
+export type AuthType = z.infer<typeof authTypeEnum>;
+export type OpenApiSource = z.infer<typeof openApiSourceEnum>;
