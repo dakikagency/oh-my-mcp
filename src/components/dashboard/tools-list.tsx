@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { toast } from "sonner";
 
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { apiAction, serverRpc } from "@/lib/api";
 
 interface Tool {
   id: string;
@@ -24,22 +24,21 @@ export function ToolsList({
   tools: Tool[];
 }) {
   const [tools, setTools] = useState(initialTools);
-  const [, start] = useTransition();
+  const [, startTransition] = useTransition();
 
   const toggle = (toolId: string, enabled: boolean) => {
     const previous = tools;
     setTools((t) => t.map((x) => (x.id === toolId ? { ...x, enabled } : x)));
-    start(async () => {
-      const res = await fetch(`/api/servers/${serverId}/tools/${toolId}`, {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ enabled }),
-        credentials: "include",
-      });
-      if (!res.ok) {
-        setTools(previous);
-        toast.error("Could not update tool.");
-      }
+    startTransition(async () => {
+      const ok = await apiAction(
+        () =>
+          serverRpc.tools[":toolId"].$patch({
+            param: { serverId, toolId },
+            json: { enabled },
+          }),
+        { error: "Could not update tool." }
+      );
+      if (!ok) setTools(previous);
     });
   };
 

@@ -3,10 +3,11 @@
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import Link from "next/link";
-import { SignOut, UserCircle, Moon, Sun } from "@phosphor-icons/react/dist/ssr";
+import { SignOutIcon, UserCircleIcon, MoonIcon, SunIcon } from "@phosphor-icons/react/dist/ssr";
 import { useTheme } from "next-themes";
 
 import { signOut } from "@/lib/auth-client";
+import { initialsOf } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,15 +26,11 @@ interface User {
 }
 
 export function UserMenu({ user }: { user: User }) {
-  const [pending, start] = useTransition();
+  const [pending, startTransition] = useTransition();
   const router = useRouter();
   const { theme, setTheme } = useTheme();
 
-  const initials = user.name
-    .split(" ")
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase())
-    .join("");
+  const initials = initialsOf(user.name);
 
   return (
     <DropdownMenu>
@@ -41,7 +38,7 @@ export function UserMenu({ user }: { user: User }) {
         <Button variant="ghost" size="icon" disabled={pending}>
           <Avatar className="h-7 w-7">
             {user.image ? <AvatarImage src={user.image} alt={user.name} /> : null}
-            <AvatarFallback>{initials || <UserCircle />}</AvatarFallback>
+            <AvatarFallback>{initials || <UserCircleIcon />}</AvatarFallback>
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
@@ -62,11 +59,11 @@ export function UserMenu({ user }: { user: User }) {
         >
           {theme === "dark" ? (
             <>
-              <Sun className="h-4 w-4" /> Light mode
+              <SunIcon className="h-4 w-4" /> Light mode
             </>
           ) : (
             <>
-              <Moon className="h-4 w-4" /> Dark mode
+              <MoonIcon className="h-4 w-4" /> Dark mode
             </>
           )}
         </DropdownMenuItem>
@@ -74,14 +71,14 @@ export function UserMenu({ user }: { user: User }) {
         <DropdownMenuItem
           onSelect={(e) => {
             e.preventDefault();
-            start(async () => {
+            startTransition(async () => {
               await signOut();
               router.push("/");
               router.refresh();
             });
           }}
         >
-          <SignOut className="h-4 w-4" /> Sign out
+          <SignOutIcon className="h-4 w-4" /> Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
