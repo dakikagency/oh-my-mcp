@@ -14,46 +14,48 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { HTTPException } from "hono/http-exception";
+import { parse as parseYaml } from "yaml";
+
+import { convertSwagger2ToOpenApi3 } from "./convert-swagger2";
 
 /** Parses text (JSON or YAML) into a JSON object, then dereferences $refs. */
 export async function parseOpenApi(text: string): Promise<unknown> {
-  const parsed = tryParse(text);
+  let parsed = tryParse(text);
   if (!parsed || typeof parsed !== "object") {
     throw new HTTPException(400, { message: "OpenAPI document is not a valid object." });
   }
   if (!(parsed as any).openapi && !(parsed as any).swagger) {
     throw new HTTPException(400, { message: "Missing `openapi` or `swagger` field." });
   }
+  // Normalize Swagger 2.0 into OpenAPI 3.0 so the tool compiler can stay
+  // focused on a single spec shape.
   if ((parsed as any).swagger && !(parsed as any).openapi) {
-    throw new HTTPException(400, {
-      message:
-        "Swagger 2.0 documents are not yet supported — please convert to OpenAPI 3.x first.",
-    });
+    parsed = convertSwagger2ToOpenApi3(parsed);
   }
   const deref = await dereference(parsed);
   return deref;
 }
 
 function tryParse(text: string): unknown {
-  // JSON first (fast path).
   const trimmed = text.trim();
+  if (!trimmed) {
+    throw new HTTPException(400, { message: "OpenAPI document is empty." });
+  }
+  // JSON first (fast path) when the text clearly looks like JSON.
   if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
     try {
       return JSON.parse(trimmed);
     } catch {
-      /* fall through to YAML */
+      /* fall through to YAML — some specs embed comments etc. */
     }
   }
-  // Minimal YAML support: only what's necessary for common OpenAPI specs.
-  // We avoid bundling a full YAML parser in the Worker. For JSON-only specs
-  // this branch is never hit; for YAML, the user can paste JSON or the ingest
-  // route can translate upstream. For now, reject gracefully.
+  // YAML (a superset of JSON in practice for most specs).
   try {
-    return JSON.parse(trimmed);
-  } catch {
+    return parseYaml(trimmed, { prettyErrors: true });
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
     throw new HTTPException(400, {
-      message:
-        "Could not parse OpenAPI document. Please provide JSON (YAML support is coming soon).",
+      message: `Could not parse OpenAPI document as JSON or YAML: ${detail}`,
     });
   }
 }

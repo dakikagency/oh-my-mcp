@@ -6,7 +6,7 @@ import { Prisma } from "@prisma/client";
 import type { Env } from "../context";
 import { requireOrg } from "../guards";
 import { createServerSchema, updateServerSchema } from "@/lib/schemas";
-import { compileOpenApiToTools } from "@/server/mcp/fromOpenAPI";
+import { compileOpenApiToTools } from "@/server/mcp/from-openapi";
 
 export const serversRouter = new Hono<Env>()
   .use("*", requireOrg)
