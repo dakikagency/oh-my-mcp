@@ -82,11 +82,11 @@ export const serversRouter = new Hono<Env>()
     }
   })
 
-  .get("/:id", async (c) => {
-    const id = c.req.param("id");
+  .get("/:serverId", async (c) => {
+    const serverId = c.req.param("serverId");
     const orgId = c.var.orgId!;
     const server = await c.var.db.mcpServer.findFirst({
-      where: { id, organizationId: orgId },
+      where: { id: serverId, organizationId: orgId },
       include: {
         openApiDoc: { select: { id: true, title: true, version: true } },
         _count: { select: { tools: true, apiKeys: true, accessTokens: true } },
@@ -96,13 +96,13 @@ export const serversRouter = new Hono<Env>()
     return c.json({ server });
   })
 
-  .patch("/:id", zValidator("json", updateServerSchema), async (c) => {
-    const id = c.req.param("id");
+  .patch("/:serverId", zValidator("json", updateServerSchema), async (c) => {
+    const serverId = c.req.param("serverId");
     const orgId = c.var.orgId!;
     const body = c.req.valid("json");
     try {
       const updated = await c.var.db.mcpServer.update({
-        where: { id, organizationId: orgId },
+        where: { id: serverId, organizationId: orgId },
         data: {
           ...(body.name !== undefined ? { name: body.name } : {}),
           ...(body.slug !== undefined ? { slug: body.slug } : {}),
@@ -126,10 +126,10 @@ export const serversRouter = new Hono<Env>()
     }
   })
 
-  .delete("/:id", async (c) => {
-    const id = c.req.param("id");
+  .delete("/:serverId", async (c) => {
+    const serverId = c.req.param("serverId");
     const orgId = c.var.orgId!;
-    await c.var.db.mcpServer.delete({ where: { id, organizationId: orgId } });
+    await c.var.db.mcpServer.delete({ where: { id: serverId, organizationId: orgId } });
     return c.json({ ok: true });
   });
 

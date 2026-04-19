@@ -18,7 +18,7 @@ export const accessTokensRouter = new Hono<Env>()
   .get("/", async (c) => {
     const serverId = c.req.param("serverId")!;
     const server = await loadServer(c, serverId);
-    const tokens = await c.var.db.mcpAccessToken.findMany({
+    const accessTokens = await c.var.db.mcpAccessToken.findMany({
       where: { serverId: server.id },
       select: {
         id: true,
@@ -31,7 +31,7 @@ export const accessTokensRouter = new Hono<Env>()
       },
       orderBy: { createdAt: "desc" },
     });
-    return c.json({ tokens });
+    return c.json({ accessTokens });
   })
 
   .post("/", zValidator("json", createAccessTokenSchema), async (c) => {
@@ -58,7 +58,7 @@ export const accessTokensRouter = new Hono<Env>()
       },
     });
     // Only time the raw token is returned.
-    return c.json({ token: created, raw }, 201);
+    return c.json({ accessToken: created, raw }, 201);
   })
 
   .post("/:tokenId/revoke", async (c) => {
