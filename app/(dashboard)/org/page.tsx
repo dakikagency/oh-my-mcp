@@ -3,23 +3,26 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { InviteMemberForm } from "@/components/dashboard/invite-member-form";
+import { initialsOf } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 export default async function OrgPage() {
   const { db, orgId } = await getDashboardContext();
-  const org = await db.organization.findUnique({ where: { id: orgId } });
-  const members = await db.member.findMany({
-    where: { organizationId: orgId },
-    include: {
-      user: { select: { id: true, name: true, email: true, image: true } },
-    },
-    orderBy: { createdAt: "asc" },
-  });
-  const invitations = await db.invitation.findMany({
-    where: { organizationId: orgId, status: "pending" },
-    orderBy: { expiresAt: "desc" },
-  });
+  const [org, members, invitations] = await Promise.all([
+    db.organization.findUnique({ where: { id: orgId } }),
+    db.member.findMany({
+      where: { organizationId: orgId },
+      include: {
+        user: { select: { id: true, name: true, email: true, image: true } },
+      },
+      orderBy: { createdAt: "asc" },
+    }),
+    db.invitation.findMany({
+      where: { organizationId: orgId, status: "pending" },
+      orderBy: { expiresAt: "desc" },
+    }),
+  ]);
 
   if (!org) return null;
 
@@ -41,13 +44,7 @@ export default async function OrgPage() {
               <li key={m.id} className="flex items-center gap-3 py-3">
                 <Avatar className="h-8 w-8">
                   {m.user.image ? <AvatarImage src={m.user.image} /> : null}
-                  <AvatarFallback>
-                    {m.user.name
-                      .split(" ")
-                      .slice(0, 2)
-                      .map((w) => w[0]?.toUpperCase())
-                      .join("")}
-                  </AvatarFallback>
+                  <AvatarFallback>{initialsOf(m.user.name)}</AvatarFallback>
                 </Avatar>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{m.user.name}</p>

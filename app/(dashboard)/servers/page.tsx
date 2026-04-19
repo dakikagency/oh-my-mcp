@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { ArrowRight, Stack, Plus, Globe, Lock, Eye } from "@phosphor-icons/react/dist/ssr";
+import { ArrowRightIcon, StackIcon, PlusIcon } from "@phosphor-icons/react/dist/ssr";
 
 import { getDashboardContext } from "@/server/session";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardTitle, CardDescription } from "@/components/ui/card";
+import { VisibilityBadge } from "@/components/dashboard/visibility-badge";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,7 @@ export default async function ServersPage() {
         </div>
         <Button asChild>
           <Link href="/servers/new">
-            <Plus className="h-4 w-4" /> New server
+            <PlusIcon className="h-4 w-4" /> New server
           </Link>
         </Button>
       </div>
@@ -38,16 +39,16 @@ export default async function ServersPage() {
       {servers.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-4 py-16 text-center">
-            <Stack weight="duotone" className="h-10 w-10 text-muted-foreground" />
+            <StackIcon weight="duotone" className="h-10 w-10 text-muted-foreground" />
             <div>
               <CardTitle className="text-base">No servers yet</CardTitle>
               <CardDescription className="mt-1">
-                Turn an OpenAPI spec into a hosted MCP server in under a minute.
+                Paste an OpenAPI URL or document — we&apos;ll host the MCP endpoint.
               </CardDescription>
             </div>
             <Button asChild>
               <Link href="/servers/new">
-                Create server <ArrowRight className="ml-1 h-4 w-4" />
+                Create server <ArrowRightIcon className="ml-1 h-4 w-4" />
               </Link>
             </Button>
           </CardContent>
@@ -92,24 +93,3 @@ export default async function ServersPage() {
   );
 }
 
-function VisibilityBadge({ visibility }: { visibility: string }) {
-  if (visibility === "PUBLIC") {
-    return (
-      <Badge variant="success" className="gap-1">
-        <Globe className="h-3 w-3" /> Public
-      </Badge>
-    );
-  }
-  if (visibility === "UNLISTED") {
-    return (
-      <Badge variant="secondary" className="gap-1">
-        <Eye className="h-3 w-3" /> Unlisted
-      </Badge>
-    );
-  }
-  return (
-    <Badge variant="outline" className="gap-1">
-      <Lock className="h-3 w-3" /> Private
-    </Badge>
-  );
-}

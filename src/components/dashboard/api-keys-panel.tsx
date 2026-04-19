@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { toast } from "sonner";
-import { Plus, Trash } from "@phosphor-icons/react/dist/ssr";
+import { PlusIcon, TrashIcon, WarningIcon } from "@phosphor-icons/react/dist/ssr";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,8 +16,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-
-type AuthType = "NONE" | "BEARER" | "HEADER" | "QUERY" | "BASIC";
+import { apiAction, apiMutate, serverRpc } from "@/lib/api";
+import type { AuthType } from "@/lib/schemas";
 
 interface KeyRow {
   id: string;
@@ -32,13 +31,19 @@ interface KeyRow {
 export function ApiKeysPanel({
   serverId,
   keys: initial,
+  requiredSchemes = [],
+  missingSchemes = [],
 }: {
   serverId: string;
   keys: KeyRow[];
+  /** Security scheme keys referenced by the OpenAPI spec. */
+  requiredSchemes?: string[];
+  /** Subset of `requiredSchemes` that don't yet have a stored credential. */
+  missingSchemes?: string[];
 }) {
   const [keys, setKeys] = useState(initial);
-  const [open, setOpen] = useState(false);
-  const [pending, start] = useTransition();
+  const [addKeyOpen, setAddKeyOpen] = useState(false);
+  const [pending, startTransition] = useTransition();
 
   const [form, setForm] = useState<{
     name: string;
@@ -55,42 +60,50 @@ export function ApiKeysPanel({
   });
 
   const create = () => {
-    start(async () => {
-      const res = await fetch(`/api/servers/${serverId}/api-keys`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          name: form.name,
-          type: form.type,
-          paramName: form.paramName || null,
-          schemeKey: form.schemeKey || null,
-          secret: form.secret,
-        }),
-        credentials: "include",
-      });
-      if (!res.ok) {
-        toast.error("Could not save key.");
-        return;
+    startTransition(async () => {
+      const data = await apiMutate<{ apiKey: KeyRow }>(
+        () =>
+          serverRpc["api-keys"].$post({
+            param: { serverId },
+            json: {
+              name: form.name,
+              type: form.type,
+              paramName: form.paramName || null,
+              schemeKey: form.schemeKey || null,
+              secret: form.secret,
+            },
+          }),
+        { error: "Could not save key.", success: "Key stored (encrypted)." }
+      );
+      if (data) {
+        setKeys((k) => [data.apiKey, ...k]);
+        setAddKeyOpen(false);
+        setForm({ name: "", type: "BEARER", paramName: "", schemeKey: "", secret: "" });
       }
-      const { key } = (await res.json()) as { key: KeyRow };
-      setKeys((k) => [key, ...k]);
-      setOpen(false);
-      setForm({ name: "", type: "BEARER", paramName: "", schemeKey: "", secret: "" });
-      toast.success("Key stored (encrypted).");
     });
   };
 
-  const remove = (id: string) => {
-    start(async () => {
-      const res = await fetch(`/api/servers/${serverId}/api-keys/${id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!res.ok) {
-        toast.error("Could not delete key.");
-        return;
-      }
-      setKeys((k) => k.filter((x) => x.id !== id));
+  const openForScheme = (scheme: string) => {
+    setForm({
+      name: scheme,
+      type: "BEARER",
+      paramName: "",
+      schemeKey: scheme,
+      secret: "",
+    });
+    setAddKeyOpen(true);
+  };
+
+  const remove = (keyId: string) => {
+    startTransition(async () => {
+      const ok = await apiAction(
+        () =>
+          serverRpc["api-keys"][":keyId"].$delete({
+            param: { serverId, keyId },
+          }),
+        { error: "Could not delete key." }
+      );
+      if (ok) setKeys((k) => k.filter((x) => x.id !== keyId));
     });
   };
 
@@ -100,14 +113,49 @@ export function ApiKeysPanel({
         <div>
           <CardTitle>Upstream credentials</CardTitle>
           <CardDescription>
-            Encrypted with AES-256-GCM. Injected into outbound requests at execution time.
+            {requiredSchemes.length > 0
+              ? "The OpenAPI spec declares security — add a credential for each scheme."
+              : "Encrypted with AES-256-GCM. Injected into outbound requests at execution time."}
           </CardDescription>
         </div>
-        <Button onClick={() => setOpen(true)} size="sm">
-          <Plus className="h-4 w-4" /> Add key
+        <Button onClick={() => setAddKeyOpen(true)} size="sm">
+          <PlusIcon className="h-4 w-4" /> Add key
         </Button>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
+        {missingSchemes.length > 0 && (
+          <div className="flex flex-col gap-3 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-100 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-2">
+              <WarningIcon weight="fill" className="mt-0.5 h-4 w-4 flex-none" />
+              <div>
+                <p className="font-medium">Missing credentials</p>
+                <p className="mt-0.5 text-xs opacity-90">
+                  Add keys for:{" "}
+                  {missingSchemes.map((s, i) => (
+                    <span key={s}>
+                      <code className="rounded bg-amber-500/20 px-1 py-0.5 font-mono">
+                        {s}
+                      </code>
+                      {i < missingSchemes.length - 1 ? ", " : ""}
+                    </span>
+                  ))}
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {missingSchemes.map((s) => (
+                <Button
+                  key={s}
+                  size="sm"
+                  variant="outline"
+                  onClick={() => openForScheme(s)}
+                >
+                  Add for <code className="ml-1 font-mono text-xs">{s}</code>
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
         {keys.length === 0 ? (
           <p className="py-10 text-center text-sm text-muted-foreground">
             No upstream credentials.
@@ -137,7 +185,7 @@ export function ApiKeysPanel({
                   disabled={pending}
                   aria-label="Delete key"
                 >
-                  <Trash className="h-4 w-4" />
+                  <TrashIcon className="h-4 w-4" />
                 </Button>
               </li>
             ))}
@@ -145,7 +193,7 @@ export function ApiKeysPanel({
         )}
       </CardContent>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={addKeyOpen} onOpenChange={setAddKeyOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add upstream credential</DialogTitle>
@@ -225,7 +273,7 @@ export function ApiKeysPanel({
             </div>
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)}>
+            <Button variant="ghost" onClick={() => setAddKeyOpen(false)}>
               Cancel
             </Button>
             <Button

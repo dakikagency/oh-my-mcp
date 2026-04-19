@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { toast } from "sonner";
-import { Copy, Plus, Trash, CheckCircle } from "@phosphor-icons/react/dist/ssr";
+import { CopyIcon, PlusIcon, TrashIcon, CheckCircleIcon } from "@phosphor-icons/react/dist/ssr";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { apiAction, apiMutate, serverRpc } from "@/lib/api";
 
 interface TokenRow {
   id: string;
@@ -38,53 +38,50 @@ export function AccessTokensPanel({
   const [tokens, setTokens] = useState(initial);
   const [createOpen, setCreateOpen] = useState(false);
   const [name, setName] = useState("");
-  const [pending, start] = useTransition();
+  const [pending, startTransition] = useTransition();
   const [revealed, setRevealed] = useState<{ token: string; name: string } | null>(null);
 
   const create = () => {
-    start(async () => {
-      const res = await fetch(`/api/servers/${serverId}/access-tokens`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name }),
-        credentials: "include",
-      });
-      if (!res.ok) {
-        toast.error("Could not create token.");
-        return;
-      }
-      const { token, raw } = (await res.json()) as {
-        token: TokenRow & { expiresAt: string | null };
+    startTransition(async () => {
+      const data = await apiMutate<{
+        accessToken: TokenRow & { expiresAt: string | null };
         raw: string;
-      };
-      setTokens((t) => [
-        {
-          ...token,
-          lastUsedAt: null,
-          revokedAt: null,
-        },
-        ...t,
-      ]);
-      setRevealed({ token: raw, name });
-      setCreateOpen(false);
-      setName("");
+      }>(
+        () =>
+          serverRpc["access-tokens"].$post({
+            param: { serverId },
+            json: { name },
+          }),
+        { error: "Could not create token." }
+      );
+      if (data) {
+        setTokens((t) => [
+          { ...data.accessToken, lastUsedAt: null, revokedAt: null },
+          ...t,
+        ]);
+        setRevealed({ token: data.raw, name });
+        setCreateOpen(false);
+        setName("");
+      }
     });
   };
 
-  const revoke = (id: string) => {
-    start(async () => {
-      const res = await fetch(`/api/servers/${serverId}/access-tokens/${id}/revoke`, {
-        method: "POST",
-        credentials: "include",
-      });
-      if (!res.ok) {
-        toast.error("Could not revoke token.");
-        return;
-      }
-      setTokens((t) =>
-        t.map((x) => (x.id === id ? { ...x, revokedAt: new Date().toISOString() } : x))
+  const revoke = (tokenId: string) => {
+    startTransition(async () => {
+      const ok = await apiAction(
+        () =>
+          serverRpc["access-tokens"][":tokenId"].revoke.$post({
+            param: { serverId, tokenId },
+          }),
+        { error: "Could not revoke token.", success: "Token revoked." }
       );
-      toast.success("Token revoked.");
+      if (ok) {
+        setTokens((t) =>
+          t.map((x) =>
+            x.id === tokenId ? { ...x, revokedAt: new Date().toISOString() } : x
+          )
+        );
+      }
     });
   };
 
@@ -98,7 +95,7 @@ export function AccessTokensPanel({
           </CardDescription>
         </div>
         <Button onClick={() => setCreateOpen(true)} size="sm">
-          <Plus className="h-4 w-4" /> New token
+          <PlusIcon className="h-4 w-4" /> New token
         </Button>
       </CardHeader>
       <CardContent>
@@ -134,7 +131,7 @@ export function AccessTokensPanel({
                     disabled={pending}
                     aria-label="Revoke"
                   >
-                    <Trash className="h-4 w-4" />
+                    <TrashIcon className="h-4 w-4" />
                   </Button>
                 )}
               </li>
@@ -204,9 +201,9 @@ function RevealBox({ value }: { value: string }) {
       <span className="min-w-0 flex-1 break-all">{value}</span>
       <Button size="icon" variant="ghost" onClick={copy} aria-label="Copy token">
         {copied ? (
-          <CheckCircle className="h-4 w-4 text-emerald-500" />
+          <CheckCircleIcon className="h-4 w-4 text-emerald-500" />
         ) : (
-          <Copy className="h-4 w-4" />
+          <CopyIcon className="h-4 w-4" />
         )}
       </Button>
     </div>

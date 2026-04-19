@@ -2,10 +2,9 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
-import { PaperPlaneTilt } from "@phosphor-icons/react/dist/ssr";
+import { PaperPlaneTiltIcon } from "@phosphor-icons/react/dist/ssr";
 
-import { organization } from "@/lib/auth-client";
+import { api, apiAction } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,24 +12,27 @@ import { Label } from "@/components/ui/label";
 export function InviteMemberForm({ orgId }: { orgId: string }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"owner" | "admin" | "member">("member");
-  const [pending, start] = useTransition();
+  const [pending, startTransition] = useTransition();
   const router = useRouter();
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    start(async () => {
-      const { error } = await organization.inviteMember({
-        email,
-        role,
-        organizationId: orgId,
-      });
-      if (error) {
-        toast.error(error.message ?? "Could not send invitation.");
-        return;
+    startTransition(async () => {
+      const ok = await apiAction(
+        () =>
+          api.orgs[":orgId"].invitations.$post({
+            param: { orgId },
+            json: { email, role },
+          }),
+        {
+          error: "Could not send invitation.",
+          success: `Invitation sent to ${email}.`,
+        }
+      );
+      if (ok) {
+        setEmail("");
+        router.refresh();
       }
-      toast.success(`Invitation sent to ${email}.`);
-      setEmail("");
-      router.refresh();
     });
   };
 
@@ -61,7 +63,7 @@ export function InviteMemberForm({ orgId }: { orgId: string }) {
         </select>
       </div>
       <Button type="submit" disabled={pending}>
-        <PaperPlaneTilt className="h-4 w-4" /> Send invite
+        <PaperPlaneTiltIcon className="h-4 w-4" /> Send invite
       </Button>
     </form>
   );
