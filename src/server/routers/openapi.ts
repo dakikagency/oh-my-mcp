@@ -7,8 +7,8 @@ import type { Env } from "../context";
 import { requireOrg } from "../guards";
 import { ingestFromUrlSchema, ingestFromTextSchema } from "@/lib/schemas";
 import { sha256Hex } from "@/lib/crypto";
-import { parseOpenApi } from "@/server/mcp/parseOpenApi";
-import { compileOpenApiToTools } from "@/server/mcp/fromOpenAPI";
+import { parseOpenApi } from "@/server/mcp/parse-openapi";
+import { compileOpenApiToTools } from "@/server/mcp/from-openapi";
 
 /**
  * OpenAPI ingest endpoints. Accepts a URL, a pasted document (JSON or YAML),
