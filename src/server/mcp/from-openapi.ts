@@ -99,7 +99,7 @@ export function compileOpenApiToTools(doc: unknown): CompileResult {
 
       const merged = mergeParams(pathLevelParams, op.parameters ?? []);
       const name = uniqueName(
-        sanitizeName(op.operationId ?? `${method}_${rawPath}`),
+        toolNameFromOperation(op.operationId, method, rawPath),
         used
       );
       used.add(name);
@@ -148,8 +148,56 @@ function sanitizeName(s: string): string {
   return s
     .replace(/[^\w]+/g, "_")
     .replace(/^_+|_+$/g, "")
+    .replace(/_+/g, "_")
     .slice(0, 64)
     .toLowerCase();
+}
+
+/** Splits camelCase/PascalCase boundaries into underscores: `fooBar` → `foo_Bar`. */
+function camelToSnake(s: string): string {
+  return s
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2");
+}
+
+/**
+ * Extracts meaningful path segments for naming, dropping templated `{id}`
+ * parameters, version prefixes like `/v4/`, and empty segments.
+ *
+ * `/v4/projects/{id}/access_requests/{user_id}` → ["projects", "access_requests"]
+ */
+function pathSegments(rawPath: string): string[] {
+  return rawPath
+    .split("/")
+    .filter(Boolean)
+    .filter((seg) => !seg.startsWith("{"))
+    .filter((seg) => !/^v\d+$/i.test(seg));
+}
+
+/**
+ * Derive a human/LLM-friendly tool name for an OpenAPI operation.
+ *
+ * TODO(you): pick the naming strategy. The scaffolding gives you:
+ *   - `operationId` (may be undefined, may be garbage like "accessrequestprojectsdeny_delete")
+ *   - `method` (lowercase HTTP verb)
+ *   - `rawPath` (OpenAPI path template, e.g. "/v4/projects/{id}/access_requests/{user_id}")
+ *
+ * Helpers available:
+ *   - `camelToSnake(s)` — splits camelCase into snake_case words.
+ *   - `pathSegments(rawPath)` — returns meaningful segments (no `{params}`, no `/v4/`).
+ *   - `sanitizeName(s)` — lowercases, collapses non-word chars to `_`, trims to 64 chars.
+ *
+ * Whatever strategy you pick, pipe your final string through `sanitizeName`
+ * before returning so we stay within the 64-char MCP tool-name limit.
+ */
+function toolNameFromOperation(
+  operationId: string | undefined,
+  method: string,
+  rawPath: string,
+): string {
+  // TODO: replace this placeholder (which reproduces the current broken
+  // behavior) with your chosen strategy — 5-10 lines.
+  return sanitizeName(operationId ?? `${method}_${rawPath}`);
 }
 
 function uniqueName(base: string, used: Set<string>): string {

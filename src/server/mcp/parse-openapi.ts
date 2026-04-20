@@ -14,7 +14,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { HTTPException } from "hono/http-exception";
-import { parse as parseYaml } from "yaml";
+import { parse as parseYaml, parseAllDocuments } from "yaml";
 
 import { convertSwagger2ToOpenApi3 } from "./convert-swagger2";
 
@@ -53,11 +53,40 @@ function tryParse(text: string): unknown {
   try {
     return parseYaml(trimmed, { prettyErrors: true });
   } catch (err) {
+    // A common real-world case: the fetched text is a Markdown file with
+    // Jekyll/Hugo-style `---` frontmatter, or a genuine multi-document YAML
+    // file. Either way, `parse()` fails with "Source contains multiple
+    // documents". Fall back to parsing all docs and picking the right one.
+    if (err instanceof Error && /multiple documents/i.test(err.message)) {
+      return pickOpenApiDocument(trimmed);
+    }
     const detail = err instanceof Error ? err.message : String(err);
     throw new HTTPException(400, {
       message: `Could not parse OpenAPI document as JSON or YAML: ${detail}`,
     });
   }
+}
+
+/**
+ * Given raw text that contains multiple YAML documents, decide which one
+ * (if any) to treat as the OpenAPI spec.
+ *
+ * TODO(you): implement the selection strategy. See comment in PR/chat for
+ * the three options (search / first-doc / reject). Return the chosen JS
+ * object, or throw an `HTTPException(400, ...)` with a clear message when
+ * none of the documents look like an OpenAPI spec.
+ *
+ * Hints:
+ *   - `parseAllDocuments(text).map((d) => d.toJS())` gives you `unknown[]`.
+ *   - An OpenAPI spec has either an `openapi` or a `swagger` string field
+ *     at the top level (see the check on line 27).
+ */
+function pickOpenApiDocument(text: string): unknown {
+  const docs = parseAllDocuments(text).map((d) => d.toJS());
+  // TODO: replace this placeholder with your chosen strategy (5-10 lines).
+  throw new HTTPException(400, {
+    message: `Multiple YAML documents found (${docs.length}). Paste only the OpenAPI spec, or link directly to the raw file.`,
+  });
 }
 
 // ---- In-memory $ref dereferencer ----
