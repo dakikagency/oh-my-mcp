@@ -206,6 +206,11 @@ model McpServer {
   @@map("mcp_server")
 }
 
+enum McpToolKind {
+  ATOMIC
+  COMPOSITE
+}
+
 model McpTool {
   id           String  @id @default(cuid())
   serverId     String
@@ -222,6 +227,9 @@ model McpTool {
   wire         Json
   securityKeys String[] @default([])
   enabled      Boolean  @default(true)
+  kind         McpToolKind @default(ATOMIC)
+  // For COMPOSITE tools: { steps: [{ operationId, rationale, inputMapping? }] }.
+  composition  Json?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
